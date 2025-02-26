@@ -309,7 +309,7 @@ export function Chat({ apiKey }: ChatProps) {
       };
       
       // Get the thinking content if present
-      const thinkingContent = message.content ? extractThinkingContent(message.content) : null;
+      const thinkingContent = message.content ? extractThinkingContent(message.content) : "";
       
       // Get the main content without thinking tags
       const mainContent = message.content 
@@ -333,7 +333,7 @@ export function Chat({ apiKey }: ChatProps) {
 
       return (
         <>
-          {thinkingContent && (
+          {(isThinking || thinkingContent !== "") && (
             <Collapsible
               open={openThinking === index}
               onOpenChange={(open) => setOpenThinking(open ? index : null)}
@@ -422,7 +422,7 @@ export function Chat({ apiKey }: ChatProps) {
 
     setInput("")
     setIsLoading(true)
-    setThinkingStartTime(Date.now())
+    setThinkingStartTime(null)
     setElapsedTime(0)
     setIsThinkingComplete(false)
 
@@ -430,29 +430,43 @@ export function Chat({ apiKey }: ChatProps) {
     currentMessageRef.current = messages[messages.length - 1]
 
     const process = (content: string) => {
-      // Check if content has thinking tags
-      if (content.includes("<think>") && !content.includes("</think>")) {
-        setIsThinking(true)
-      }
-      else if (content.includes("<think>") && content.includes("</think>")) {
+      if (content.includes("<think>") && content.includes("</think>")) {
         setIsThinking(false)
         setIsThinkingComplete(true)
+        return true
       }
+      else return false
     }
 
+    setIsThinking(true)
     handleSubmit(event, {
       body: {
         apiKey: apiKey.perplexityApiKey,
       }
     })
 
-    while (true) {
-      if (status !== "ready") {
-        process(input)
-      }
-      else {
-        break
-      }
+    console.log("Thinking...")
+    
+    // Replace while loop with async polling
+    const pollForThinkingCompletion = () => {
+      return new Promise<void>((resolve) => {
+        const checkInterval = setInterval(() => {
+          const isThinkingComplete = process(currentMessageRef.current?.content || "");
+          
+          if (isThinkingComplete) {
+            clearInterval(checkInterval);
+            console.log("Done thinking!");
+            resolve();
+          }
+        }, 1000);
+      });
+    };
+    
+    await pollForThinkingCompletion();
+
+    setIsLoading(false);
+    if (scrollRef.current) {
+      cancelAnimationFrame(scrollRef.current);
     }
   }
 
